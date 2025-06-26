@@ -6,7 +6,6 @@ Authors@R: c(person(given = "Yi-Shin", family = "Lin", role = c("aut", "cre"), e
 Maintainer: Yi-Shin Lin <yishinlin001@gmail.com>
 Description: Provides header files for differential evolution MCMC sampling.
 License: GPL (>= 2)
-LicenseFile: LICENSE
 URL: https://github.com/yxlin/ggdmcHeaders
 Imports: Rcpp, RcppArmadillo
 RoxygenNote: 7.3.2
