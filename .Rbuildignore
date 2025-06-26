@@ -1,0 +1,10 @@
+^.*\.Rproj$
+^\.Rproj\.user$
+^\.lintr$
+^\.clang-format$
+^tests$
+^\.vscode$
+^\.build\.r$
+^globals\.R$
+
+

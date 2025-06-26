@@ -1,0 +1,13 @@
+Package: ggdmcHeaders
+Title: C++ Headers for ggdmc package
+Version: 0.1.0
+Date: 2025-06-01
+Authors@R: c(person(given = "Yi-Shin", family = "Lin", role = c("aut", "cre"), email = "yishinlin001@gmail.com"))
+Maintainer: Yi-Shin Lin <yishinlin001@gmail.com>
+Description: Provides header files for differential evolution MCMC sampling.
+License: GPL (>= 2)
+Imports: Rcpp, RcppArmadillo
+RoxygenNote: 7.3.2
+Encoding: UTF-8
+NeedsCompilation: yes
+
