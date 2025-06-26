@@ -7,6 +7,7 @@ Maintainer: Yi-Shin Lin <yishinlin001@gmail.com>
 Description: Provides header files for differential evolution MCMC sampling.
 License: GPL (>= 2)
 LicenseFile: LICENSE
+URL: https://github.com/yxlin/ggdmcHeaders
 Imports: Rcpp, RcppArmadillo
 RoxygenNote: 7.3.2
 Encoding: UTF-8
