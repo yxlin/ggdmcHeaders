@@ -1,6 +1,6 @@
 Package: ggdmcHeaders
 Title: C++ Headers for 'ggdmc' Package
-Version: 0.2.8.9
+Version: 0.2.9.0
 Date: 2025-06-26
 Authors@R: c(person(given = "Yi-Shin", family = "Lin", role = c("aut", "cre"), email = "yishinlin001@gmail.com"))
 Maintainer: Yi-Shin Lin <yishinlin001@gmail.com>
