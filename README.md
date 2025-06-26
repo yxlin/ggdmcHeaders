@@ -1,2 +1,2 @@
 # ggdmcHeaders
-C++ Headers for ggdmc package
+C++ headers for ggdmc package
