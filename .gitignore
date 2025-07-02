@@ -52,3 +52,4 @@ rsconnect/
 .lintr
 .Rbuildignore
 .build.r
+tests/
