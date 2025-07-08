@@ -1,7 +1,7 @@
 #pragma once
 
 #include "model_utils.h"
-// #include <RcppArmadillo.h>
+
 
 namespace design
 {
@@ -399,7 +399,7 @@ class design_class
                         << "\n";
             throw std::runtime_error("Constant vector (names and values) "
                                      "mismatched: name vector length: " +
-                                     m_constant_names.size());
+                                     std::to_string(m_constant_names.size()));
         }
         Rcpp::Rcout << str;
         for (size_t i = 0; i < m_constant_names.size(); ++i)
