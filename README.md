@@ -17,10 +17,17 @@ R (>= 3.5.0), Rcpp (>= 1.0.7), and RcppArmadillo
 
 # Installation
 
-You may download it from [CRAN ggdmcHeaders package](https://cran.r-project.org/web/packages/ggdmcHeaders/index.html), and install it from the source tarball. An alternative method is to run the command in R:
+You can download the package from [CRAN: ggdmcHeaders](https://cran.r-project.org/web/packages/ggdmcHeaders/index.html) and install it using the source tarball.  
 
 ```
-install.packages("ggdmcModel")
+install.packages("ggdmcHeaders_0.2.9.1.tar.gz", repos = NULL, type = "source")
+
+```
+
+Alternatively, you can install it directly in R by running the following command:
+
+```
+install.packages("ggdmcHeaders")
 ```
 
 
