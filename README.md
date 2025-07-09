@@ -10,4 +10,4 @@ choice response time models and factorial designs, allowing users to
 build their own design-based models.
 
 The package serves as the C++ backends for the following packages:
-ggdmcModel, ggdmcPrior, ggdmcLikelihood, lbaModel, ddModel and ggdmc.
+_ggdmcModel_, _ggdmcPrior_, _ggdmcLikelihood_, _lbaModel_, _ddModel_ and _ggdmc_.
