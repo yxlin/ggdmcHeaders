@@ -11,3 +11,16 @@ build their own design-based models.
 
 The package serves as the C++ backends for the following packages:
 _ggdmcModel_, _ggdmcPrior_, _ggdmcLikelihood_, _lbaModel_, _ddModel_ and _ggdmc_.
+
+# Prerequisites
+R (>= 3.5.0), Rcpp (>= 1.0.7), and RcppArmadillo 
+
+# Installation
+
+You may download it from [CRAN ggdmcHeaders package](https://cran.r-project.org/web/packages/ggdmcHeaders/index.html), and install it from the source tarball. An alternative method is to run the command in R:
+
+```
+install.packages("ggdmcModel")
+```
+
+
