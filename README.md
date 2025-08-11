@@ -1,7 +1,7 @@
 # ggdmcHeaders
 
 <!-- Badges -->
-[![CRAN Status](https://www.r-pkg.org/badges/version/ggdmeHeaders)](https://cran.r-project.org/package=ggdmcHeaders)
+[![CRAN Status](https://www.r-pkg.org/badges/version/ggdmcHeaders)](https://cran.r-project.org/package=ggdmcHeaders)
 [![Downloads](https://cranlogs.r-pkg.org/badges/ggdmcHeaders)](https://cran.r-project.org/package=ggdmcHeaders)
 [![License: GPL-3](https://img.shields.io/badge/license-GPL--3-blue.svg)](https://www.gnu.org/licenses/gpl-3.0)
 [![R-CMD-check](https://github.com/yxlin/ggdmcHeaders/actions/workflows/R-CMD-check.yaml/badge.svg)](https://github.com/yxlin/ggdmcHeaders/actions/workflows/R-CMD-check.yaml)
