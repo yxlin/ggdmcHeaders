@@ -8,6 +8,7 @@
 
 
 **ggdmcHeaders** provides the C++ backend for choice response time models, enabling high-performance computation for hierarchical modelling and Bayesian inference.  
+
 It integrates with the Differential Evolution Markov Chain Monte Carlo (DE-MCMC) sampler from the [`ggdmc`](https://cran.r-project.org/package=ggdmc) package, allowing users to build and fit design-based cognitive models, including factorial designs.
 
 This package serves as a shared C++ codebase for the following packages:  
@@ -45,7 +46,7 @@ install.packages("ggdmcHeaders")
 
 ### From Source
 
-Download the source tarball and install:
+Download the [source tarball](https://cran.r-project.org/web/packages/ggdmcHeaders/index.html) and install:
 ```r
 install.packages("ggdmcHeaders_0.2.9.1.tar.gz", repos = NULL, type = "source")
 ```
