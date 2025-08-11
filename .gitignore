@@ -48,8 +48,14 @@ po/*~
 # RStudio Connect folder
 rsconnect/
 
+src/*.o
+src/*.so
+
+*.Rproj
+cleanup
 .clang-format
 .lintr
 .Rbuildignore
 .build.r
-tests/
+
+.vscode/

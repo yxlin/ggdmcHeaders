@@ -11,7 +11,7 @@
 #'
 #' The package serves as the C++ backends for the following packages:
 #' \pkg{ggdmcModel}, \pkg{ggdmcPrior}, \pkg{ggdmcLikelihood},
-#' \pkg{lbaModel}, '\pkg{ddModel} and \pkg{ggdmc}.
+#' \pkg{lbaModel}, \pkg{ddModel} and \pkg{ggdmc}.
 #'
 #' @name ggdmcHeaders
 #' @references

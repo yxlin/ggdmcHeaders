@@ -1,12 +1,13 @@
-^.*\.Rproj$
 ^\.Rproj\.user$
-^\.lintr$
-^\.clang-format$
+^\.renv$
+
 ^tests$
 ^\.vscode$
-^\.build\.r$
-^globals\.R$
 
-
+^.*\.Rproj$
 ^LICENSE\.md$
+
+^.clang-format$
+^\.build\.r$
+^\.lintr$
 ^\.github$
