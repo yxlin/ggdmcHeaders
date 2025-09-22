@@ -16,64 +16,14 @@ using double2D = std::vector<std::vector<double>>;
 using strVec = std::vector<std::string>;
 using uint1D = std::vector<unsigned int>;
 
-inline strVec split(const std::string &input, char delimiter)
-{
-    strVec parts;
-    std::stringstream ss(input);
-    std::string part;
-    while (std::getline(ss, part, delimiter))
-    {
-        parts.push_back(part);
-    }
-    return parts;
-}
-
-inline uint2D get_node_1_index(const strVec &cell_names,
-                               const strVec &accumulators)
-{
-    size_t n_accumulator = accumulators.size();
-    size_t n_cell = cell_names.size();
-
-    uint2D out(n_cell, uint1D(n_accumulator, 0));
-
-    for (size_t i = 0; i < n_cell; ++i)
-    {
-        strVec cell_level = split(cell_names[i], '.');
-        std::string response = cell_level.back();
-
-        auto it = std::find(accumulators.begin(), accumulators.end(), response);
-        if (it == accumulators.end())
-        {
-            throw std::runtime_error(
-                "Error: Response cell not found in accumulators");
-        }
-        size_t acc_index = distance(accumulators.begin(), it);
-
-        if (acc_index == 0)
-        {
-            for (size_t j = 0; j < n_accumulator; ++j)
-            {
-                out[i][j] = j;
-            }
-        }
-        else
-        {
-            std::vector<unsigned int> row(n_accumulator);
-            // Fill with 0, 1, ..., naccumulator-1
-            std::iota(row.begin(), row.end(), 0);
-            std::swap(row[0], row[acc_index]);
-            std::sort(row.begin() + 1, row.end());
-            for (size_t j = 0; j < n_accumulator; ++j)
-            {
-                out[i][j] = row[j];
-            }
-        }
-    }
-    return out;
-}
-
 namespace design
 {
+// alias for readability
+// using strVec = std::vector<std::string>;
+// using MapStrVec = std::map<std::string, strVec>;
+// using MapStrStr = std::map<std::string, std::map<std::string, std::string>>;
+// using MapStrDbl = std::map<std::string, double>;
+
 class design_class
 {
   private:
@@ -88,20 +38,18 @@ class design_class
     }
     void find_free_parameters()
     { // This function inferred two member variables:
-        // 1. m_parameter_names,
-        // 2. m_n_parameter.
         m_is_free_parameter.resize(m_n_parameter_x_condition, false);
 
         for (size_t i = 0; i < m_parameter_x_condition_names.size(); ++i)
         {
             // Going over all parameters and check if it is not listed
             // in the key position of the constant_names.
-            std::string str = m_parameter_x_condition_names[i];
+            const std::string &str = m_parameter_x_condition_names[i];
 
+            // If NOT found in m_constants => it's a free parameter
             if (m_constants.find(str) == m_constants.end())
             {
-                m_free_parameter_names.push_back(
-                    str); // Add to the result if not found
+                m_free_parameter_names.push_back(str);
                 m_is_free_parameter[i] = true;
             }
         }
@@ -113,16 +61,19 @@ class design_class
         // This function inferred two member variables:
         // 1. m_constant_names
         // 2. m_constant_value
-        for (const auto &item : m_constants)
-        {
-            m_constant_names.push_back(item.first);
-        }
+
+        m_constant_names.clear();
+        m_constant_values.clear();
+        // Push names and values in the SAME order to keep indices aligned
+        m_constant_names.reserve(m_constants.size());
+        m_constant_values.reserve(m_constants.size());
 
         for (const auto &str : m_parameter_x_condition_names)
         {
             auto it = m_constants.find(str);
             if (it != m_constants.end())
             {
+                m_constant_names.push_back(it->first);
                 m_constant_values.push_back(it->second);
             }
         }
@@ -213,7 +164,8 @@ class design_class
           m_cell_names(std::move(cell_names)),
           m_parameter_x_condition_names(std::move(parameter_x_condition_names)),
           m_constants(std::move(constants)),
-          m_model_boolean(std::move(model_boolean))
+          m_model_boolean(std::move(model_boolean)),
+          m_model_str(std::move(model_str))
     {
         // 1.
         m_n_core_parameter = parameter_map.size();
@@ -221,21 +173,34 @@ class design_class
 
         // 2.
         m_n_accumulator = m_accumulator_names.size();
+        if (m_n_accumulator == 0)
+        {
+            // Rcpp::Rcout
+            //     << "Non-accumulator model, setting n_accumulator to 1\n";
+            m_n_accumulator = 1;
+        }
+
         m_n_cell = m_cell_names.size();
         m_n_parameter_x_condition = m_parameter_x_condition_names.size();
 
         find_free_parameters();
-        find_constant_parameters();
+
+        if (m_constants.size() != 0)
+        {
+            // Rcpp::Rcout << "m_constant size = " << m_constants.size() <<
+            // "\n";
+            find_constant_parameters();
+        }
 
         // 3. We should know what model type the user wants.
-        m_model_str = model_str;
         if (m_model_str == "lba")
         {
             m_node_1_index =
                 get_node_1_index(m_cell_names, m_accumulator_names);
         }
 
-        if (m_model_str == "lba" || m_model_str == "fastdm")
+        if (m_model_str == "lba" || m_model_str == "fastdm" ||
+            m_model_str == "cdm")
         {
             m_tmp_param_map.resize(m_n_accumulator);
             m_param_map.resize(m_n_accumulator);
@@ -268,7 +233,6 @@ class design_class
     std::vector<bool> m_is_free_parameter;
 
     /* ----- Prepare the info for the parameter matrix -----*/
-    // Each arma::vec is a n_acc vector.
     // The outer layer of the std::vector is a n_cell vector.
     // The middle layer of the std::vector is a n_core_parameter vector
     // The inner most layer of the std::vector is a n_accumulator vector.
@@ -344,6 +308,8 @@ class design_class
     }
     void allocate_parameters()
     {
+        // Rcpp::Rcout << "allocate parameters: " << m_model_str << "\n";
+
         for (size_t accu_idx = 0; accu_idx < m_n_accumulator; ++accu_idx)
         {
             m_tmp_param_map[accu_idx].resize(m_n_cell);
@@ -363,6 +329,8 @@ class design_class
     }
     void transform()
     {
+        // Rcpp::Rcout << "transform: " << m_model_str << "\n";
+
         for (size_t accu_idx = 0; accu_idx < m_n_accumulator; accu_idx++)
         {
             m_param_map[accu_idx].resize(m_n_cell);

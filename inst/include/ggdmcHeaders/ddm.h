@@ -71,8 +71,6 @@ class ddm_class
     void set_parameters(const std::vector<std::vector<double>> &parameters,
                         bool is_minus = true);
 
-    // void set_parameters2(const std::vector<std::vector<double>> &parameters,
-    //                      bool is_minus = true);
     bool validate_parameters(bool is_debug = false);
     void print(std::string header = "") const;
 

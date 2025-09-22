@@ -1,7 +1,8 @@
 #pragma once
 
+#include "cdm.h"
 #include "ddm.h"
-#include "design_light.h"
+#include "design.h"
 #include "lba.h"
 #include "prior.h"
 
@@ -15,6 +16,7 @@ class likelihood_class
         LBA = 1,
         FAST_DM = 2,
         HYPER = 3,
+        CDM = 4,
         DEFAULT // DEFAULT will implicitly be 0
     };
 
@@ -26,12 +28,14 @@ class likelihood_class
             return FAST_DM; // 2
         if (type == "hyper")
             return HYPER; // 3
-        return DEFAULT;   // 0
+        if (type == "cdm")
+            return CDM; // 4
+        return DEFAULT; // 0
     }
 
     void update_empty_cells()
     {
-        // It does not matter whether data_cell_names are sorted or not
+        // It doesn't matter whether data_cell_names are sorted or not
         // here, but the sequence of the rt and cell_boolean from the data
         // are still critical.
         unsigned int n_cell = m_model->m_cell_names.size();
@@ -96,12 +100,10 @@ class likelihood_class
 
             if (is_valid)
             {
-                // Rcpp::Rcout << "valid\n";
                 m_density[cell_idx] = lba_obj.dlba(m_rt[cell_idx]);
             }
             else
             {
-                // Rcpp::Rcout << "invalid\n";
                 m_density[cell_idx].assign(m_rt[cell_idx].size(), 1e-10);
             }
         }
@@ -109,7 +111,6 @@ class likelihood_class
 
     void print_parameter_matrix(const std::vector<std::vector<double>> &input)
     {
-        // REMOVE it after debugging
         const int width = 10;
         const int precision = 3;
 
@@ -160,29 +161,73 @@ class likelihood_class
         }
     }
 
+    void cdm_likelihood(const std::vector<double> &parameters, bool debug)
+    {
+        m_density.resize(m_model->m_n_cell);
+        static cdm::cdm_class cdm_obj;
+        cdm_obj.set_rule(m_rule);
+        cdm_obj.set_default_parameters(m_theta_data);
+
+        bool is_valid = false;
+
+        for (size_t cell_idx = 0; cell_idx < m_model->m_n_cell; ++cell_idx)
+        {
+            if (m_is_empty_cell[cell_idx])
+                continue;
+
+            m_model->set_parameter_values(cell_idx, parameters);
+            // m_theta_data = Q matrix
+            cdm_obj.set_parameters(m_model->m_parameter_matrix[cell_idx],
+                                   m_theta_data);
+            is_valid = cdm_obj.validate_parameters(debug);
+
+            if (debug)
+            {
+                const auto &cell_name = m_model->m_cell_names[cell_idx];
+                cdm_obj.print_parameters(cell_name);
+            }
+
+            if (is_valid)
+            {
+
+                m_density[cell_idx] = cdm_obj.dcdm(m_rt[cell_idx]);
+            }
+            else
+            {
+                m_density[cell_idx].assign(m_rt[cell_idx].size(), 1e-10);
+                // Rcpp::stop("invalid CDM cell parameters (likelihood.h)\n");
+            }
+        }
+    }
+
   public:
     std::shared_ptr<design::design_class> m_model;
 
-    // - m_data_rt is from the empirical data, which at some occassions will
+    // - m_data_rt is from R/the empirical data, which at some occassions will
     // have no data for some cell/condition.
     // - m_rt preserves an emply slot for the cell/condition without data.
-    // Therefore, the loop going over each cell knows if a cell has no data.
+    // When the loop goes over n_cell and sees the empty slot, it uses the
+    // Boolean vecotr, m_is_empty_cell, to identify if a cell has no data.
     std::vector<std::vector<double>> m_data_rt, m_rt, m_density;
-    std::vector<std::string> m_data_cell_names;
+    strVec m_data_cell_names;
     std::string m_model_str;
 
-    // is_positive_drift -> for tnorm in lba.h or is_lower in ddm.h
+    // is_positive_drift is used by tnorm in lba.h or is_lower in ddm.h
     std::vector<bool> m_is_empty_cell, m_is_positive_drift;
 
-    // Hyper only members
+    // Hyper members
     arma::mat m_theta_data;
     std::shared_ptr<prior::prior_class> m_p_prior;
 
-    // LBA constructor (with is_positive_drift)
+    // CDM members
+    std::vector<double> m_pi_prior;
+    std::string m_rule;
+
+    // LBA and DDM constructor (with is_positive_drift)
     likelihood_class(std::shared_ptr<design::design_class> model,
                      std::vector<std::vector<double>> data_rt,
-                     std::vector<std::string> data_cell_names,
-                     std::string model_str, std::vector<bool> is_positive_drift)
+                     strVec data_cell_names, std::string model_str,
+                     std::vector<bool> is_positive_drift)
         : m_model(std::move(model)), m_data_rt(std::move(data_rt)),
           m_data_cell_names(std::move(data_cell_names)),
           m_model_str(std::move(model_str)),
@@ -190,33 +235,54 @@ class likelihood_class
     {
         update_empty_cells();
         fill_in_rt_vector();
-        // Rcpp::Rcout << "likelihood constructor m_is_positive_drift\n";
     }
 
-    // LBA simulation constructor. No data_rt, nor data_cell_names.
+    // LBA and fastdm simulation constructor. No data_rt, nor data_cell_names.
     // with is_positive_drift
     likelihood_class(std::shared_ptr<design::design_class> model,
                      std::string model_str, std::vector<bool> is_positive_drift)
         : m_model(std::move(model)), m_model_str(std::move(model_str)),
           m_is_positive_drift(std::move(is_positive_drift))
     {
-        // Rcpp::Rcout << "Likelihood simulation constructor\n";
+    }
+    // CDM simulation constructor. No data_rt, nor data_cell_names.
+    // with q_matrix and pi_prior
+    likelihood_class(std::shared_ptr<design::design_class> model,
+                     std::string model_str, arma::mat q_matrix,
+                     std::vector<double> pi_prior)
+        : m_model(std::move(model)), m_model_str(std::move(model_str)),
+          m_pi_prior(std::move(pi_prior))
+    {
+        m_theta_data = q_matrix;
+    }
+
+    // CDM constrcutor
+    likelihood_class(std::shared_ptr<design::design_class> model,
+                     std::vector<std::vector<double>> data_rt,
+                     strVec data_cell_names, std::string model_str,
+                     arma::mat q_matrix, std::vector<double> pi_prior,
+                     std::string rule)
+        : m_model(std::move(model)), m_data_rt(std::move(data_rt)),
+          m_data_cell_names(std::move(data_cell_names)),
+          m_model_str(std::move(model_str)), m_pi_prior(std::move(pi_prior))
+    {
+        update_empty_cells();
+        fill_in_rt_vector();
+        m_theta_data = q_matrix;
+        m_rule = rule;
     }
 
     // Hyper constructor
-    ////////////////////////////
     likelihood_class(std::shared_ptr<design::design_class> model,
                      std::shared_ptr<prior::prior_class> p_prior,
                      arma::mat theta_data, std::string model_str)
-        : m_model(std::move(model)), m_p_prior(std::move(p_prior))
-
+        : m_model(std::move(model)), m_model_str(std::move(model_str)),
+          m_p_prior(std::move(p_prior))
     {
-        // Rcpp::Rcout << "Likelihood hyper constructor\n";
         m_theta_data = theta_data.t();
-        m_model_str = model_str;
     }
 
-    ~likelihood_class(){};
+    ~likelihood_class() {};
 
     // Use by the ggdmcLikelihood
     template <typename T>
@@ -239,14 +305,16 @@ class likelihood_class
     {
         // ggdmcLikelihood enters from here
         if (m_model_str == "lba")
-        { // Fill in m_density with likelihoods;
-            // Rcpp::Rcout << "lba_likelihood ggdmcLikelihood\n";
-
+        {
             lba_likelihood(parameters, debug);
         }
         else if (m_model_str == "fastdm")
         {
             ddm_likelihood(parameters, debug);
+        }
+        else if (m_model_str == "cdm")
+        {
+            cdm_likelihood(parameters, debug);
         }
         else
         {
@@ -307,6 +375,18 @@ class likelihood_class
             break;
         case HYPER:
             sumloghlike(parameters, out);
+            break;
+        case CDM:
+            cdm_likelihood(parameters_std, debug);
+            for (const auto &inner_vec : m_density)
+            {
+                for (double val : inner_vec)
+                {
+                    // out += std::log(std::max(val, DBL_MIN));
+                    out += std::log(val);
+                }
+            }
+            // Rcpp::stop("cdm_likelihood is under construction\n");
             break;
         case DEFAULT:
             throw std::runtime_error("Undefined model type\n");

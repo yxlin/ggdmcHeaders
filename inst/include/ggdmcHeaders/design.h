@@ -1,7 +1,7 @@
 #pragma once
 
 #include "model_utils.h"
-
+#include "type_aliases.h"
 
 namespace design
 {
@@ -108,6 +108,55 @@ class design_class
         }
     }
 
+    /* ----------------non-accumulator models------------------------- */
+    bool m_has_accumulators = true;
+
+    // strVec m_accumulator_names;
+    // strVec m_cell_names;
+    strVec m_factor_names;
+    // strVec m_factor_names_hint; // optional: if your add_M needs something
+    // strVec m_parameter_x_condition_names;
+    // MapStrDbl m_constants;
+
+    // ---------- shared init ----------
+    void init_common(const MapStrVec &parameter_map, const MapStrVec &factors)
+    {
+        m_n_core_parameter = parameter_map.size();
+        find_core_parameters(parameter_map);
+
+        m_parameter_x_condition_names = add_M(parameter_map, factors);
+        m_n_parameter_x_condition = m_parameter_x_condition_names.size();
+    }
+
+    // ---------- no-acc path ----------
+    void init_no_accumulators(const MapStrVec &parameter_map,
+                              const MapStrVec &factors)
+    {
+        auto [cells, facs] =
+            build_cell_names_no_accumulator(parameter_map, factors);
+        m_cell_names = std::move(cells);
+        m_factor_names = std::move(facs);
+
+        m_n_cell = m_cell_names.size();
+        m_n_accumulator = 1;
+
+        m_model_boolean =
+            build_model_boolean_noaccu_nomatch(parameter_map, factors);
+    }
+    // ---------- finish-up common tail ----------
+    void finalize()
+    {
+        find_free_parameters();
+        find_constant_parameters();
+
+        /*---------- parameter map to be used in likelihood_class----------*/
+        m_tmp_param_map.resize(m_n_accumulator);
+        m_param_map.resize(m_n_accumulator);
+
+        // allocate_parameters();
+        // prepare_parameter_matrix();
+    }
+
   public:
     // 1. process parameter_map
     // m_n_parameter_x_condition includes fixed parameters
@@ -131,7 +180,7 @@ class design_class
 
     // Created members
     std::vector<std::string> m_free_parameter_names; // no fixed parameters
-    unsigned int m_n_free_parameter;
+    size_t m_n_free_parameter;
 
     /* ---------------- Members and functions -------------------------- */
     std::vector<std::vector<uint2D>> m_tmp_param_map;
@@ -142,7 +191,9 @@ class design_class
     arma::ucube m_model_boolean_arma;
     arma::cube m_parameter_matrix_arma;
 
-    // With model_utils
+    std::string m_model_str;
+
+    // Work with model_utils; TODO: make this constructor obsoleted
     design_class(
         std::map<std::string, std::map<std::string, std::string>> match_map,
         std::map<std::string, std::vector<std::string>> parameter_map,
@@ -150,6 +201,8 @@ class design_class
         std::vector<std::string> accumulator_names,
         std::map<std::string, double> constants)
     {
+        Rcpp::Rcout << "Constructor WITH accumulators\n";
+
         m_n_core_parameter = parameter_map.size();
         m_accumulator_names = accumulator_names;
         m_constants = constants;
@@ -192,14 +245,94 @@ class design_class
         m_param_map.resize(m_n_accumulator);
 
         allocate_parameters();
-        lba_transform();
+        transform();
         prepare_parameter_matrix();
+    }
+
+    // Temp constructor (same as the one in design_light.h) to
+    // bridge design.h to merge with design_light.h
+    design_class(std::map<std::string, std::vector<std::string>> &parameter_map,
+                 std::vector<std::string> &accumulator_names,
+                 std::vector<std::string> &cell_names,
+                 std::vector<std::string> &parameter_x_condition_names,
+                 std::map<std::string, double> &constants,
+                 std::vector<std::vector<std::vector<bool>>> &model_boolean,
+                 std::string model_str = "")
+        : m_accumulator_names(std::move(accumulator_names)),
+          m_cell_names(std::move(cell_names)),
+          m_parameter_x_condition_names(std::move(parameter_x_condition_names)),
+          m_constants(std::move(constants)),
+          m_model_boolean(std::move(model_boolean)),
+          m_model_str(std::move(model_str))
+    {
+        // 1.
+        m_n_core_parameter = parameter_map.size();
+        find_core_parameters(parameter_map);
+
+        // 2.
+        m_n_accumulator = m_accumulator_names.size();
+        if (m_n_accumulator == 0)
+        {
+            m_n_accumulator = 1;
+        }
+
+        m_n_cell = m_cell_names.size();
+        m_n_parameter_x_condition = m_parameter_x_condition_names.size();
+
+        find_free_parameters();
+
+        if (m_constants.size() != 0)
+        {
+            find_constant_parameters();
+        }
+
+        // 3. We should know what model type the user wants.
+        if (m_model_str == "lba")
+        {
+            m_node_1_index =
+                get_node_1_index(m_cell_names, m_accumulator_names);
+        }
+
+        if (m_model_str == "lba" || m_model_str == "fastdm" ||
+            m_model_str == "cdm")
+        {
+            m_tmp_param_map.resize(m_n_accumulator);
+            m_param_map.resize(m_n_accumulator);
+            allocate_parameters();
+            transform();
+            prepare_parameter_matrix();
+        }
+        else if (m_model_str == "hyper")
+        {
+            // Rcpp::Rcout << "hyper model type " << m_model_str
+            //             << " does not prepare parameter matrix;\n";
+        }
+        else
+        {
+            Rcpp::Rcout << "model type " << m_model_str << "\n";
+
+            throw std::runtime_error(
+                "Unknown model type detected in design_light.h");
+        }
     }
 
     ~design_class()
     {
     }
 
+    // ---- Constructor WITHOUT accumulators ----; retired this constructor,
+    // too.
+    design_class(const MapStrVec &parameter_map, const MapStrVec &factors,
+                 const MapStrDbl &constants)
+        : m_has_accumulators(false), m_constants(constants)
+    {
+        // Rcpp::Rcout << "Constructor WITHOUT accumulators\n";
+        // m_constants = constants;
+
+        init_common(parameter_map, factors);
+        init_no_accumulators(parameter_map, factors);
+        finalize();
+    }
     /* ------------------ Public functions ------------------ */
     void allocate_parameters()
     {
@@ -301,7 +434,7 @@ class design_class
     }
 
     /* ---------------Model specific methods--------------- */
-    void lba_transform()
+    void transform()
     {
         for (size_t accu_idx = 0; accu_idx < m_n_accumulator; accu_idx++)
         {
@@ -316,9 +449,19 @@ class design_class
                     m_param_map[accu_idx][cell_idx][para_idx].resize(2);
                 }
 
-                size_t node_idx = m_node_1_index[cell_idx][accu_idx];
-                m_param_map[accu_idx][cell_idx] =
-                    std::move(m_tmp_param_map[node_idx][cell_idx]);
+                if (m_model_str == "lba")
+                {
+                    size_t node_idx = m_node_1_index[cell_idx][accu_idx];
+                    // 1st index used node_idx
+                    m_param_map[accu_idx][cell_idx] =
+                        std::move(m_tmp_param_map[node_idx][cell_idx]);
+                }
+                else
+                {
+                    // 1st index used acc_idx
+                    m_param_map[accu_idx][cell_idx] =
+                        std::move(m_tmp_param_map[accu_idx][cell_idx]);
+                }
             }
         }
     }
@@ -391,16 +534,54 @@ class design_class
         }
         Rcpp::Rcout << std::endl;
     }
-    void print_constants(const std::string str = "")
+    // void print_constants(const std::string str = "")
+    // {
+    //     if (m_constant_names.size() != m_constant_values.size())
+    //     {
+    //         Rcpp::Rcout << "Constant vector length " <<
+    //         m_constant_values.size()
+    //                     << "\n";
+    //         throw std::runtime_error("Constant vector (names and values) "
+    //                                  "mismatched: name vector length: " +
+    //                                  std::to_string(m_constant_names.size()));
+    //     }
+    //     Rcpp::Rcout << str;
+    //     for (size_t i = 0; i < m_constant_names.size(); ++i)
+    //     {
+    //         Rcpp::Rcout << m_constant_names[i] << ": " <<
+    //         m_constant_values[i]
+    //                     << "\t";
+    //     }
+    //     Rcpp::Rcout << std::endl;
+    // }
+
+    void print_constants(const std::string &str = "")
     {
         if (m_constant_names.size() != m_constant_values.size())
         {
-            Rcpp::Rcout << "Value vector length " << m_constant_values.size()
+            Rcpp::Rcout << "❌ Constant vector length mismatch detected!\n"
+                        << "  Names size: " << m_constant_names.size()
+                        << ", Values size: " << m_constant_values.size()
                         << "\n";
-            throw std::runtime_error("Constant vector (names and values) "
-                                     "mismatched: name vector length: " +
-                                     std::to_string(m_constant_names.size()));
+
+            Rcpp::Rcout << "  --- Names ---\n";
+            for (size_t i = 0; i < m_constant_names.size(); ++i)
+            {
+                Rcpp::Rcout << "  [" << i << "] " << m_constant_names[i]
+                            << "\n";
+            }
+
+            Rcpp::Rcout << "  --- Values ---\n";
+            for (size_t i = 0; i < m_constant_values.size(); ++i)
+            {
+                Rcpp::Rcout << "  [" << i << "] " << m_constant_values[i]
+                            << "\n";
+            }
+
+            throw std::runtime_error("Constant vector mismatch: names and "
+                                     "values have different lengths.");
         }
+
         Rcpp::Rcout << str;
         for (size_t i = 0; i < m_constant_names.size(); ++i)
         {
@@ -409,6 +590,7 @@ class design_class
         }
         Rcpp::Rcout << std::endl;
     }
+
     void print_parameter_matrix(const std::string str = "")
     {
         Rcpp::Rcout << "\n" << str << "\n";

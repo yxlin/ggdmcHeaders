@@ -1,9 +1,7 @@
 #pragma once
 #include "design_light.h"
 #include "lba.h"
-#include "simulation_type_casting.h"
-#include <string>
-#include <vector>
+
 void simulate_each_condition(
     const std::shared_ptr<design::design_class> &design,
     lba::lba_class &lba_obj, const std::vector<double> &parameters,

@@ -11,3 +11,5 @@
 ^\.build\.r$
 ^\.lintr$
 ^\.github$
+
+^src/.*\.(o|so|dll)$

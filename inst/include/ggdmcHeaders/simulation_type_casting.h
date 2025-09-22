@@ -1,8 +1,93 @@
 #pragma once
 #include "common_type_casting.h"
-#include "likelihood.h"
+#include "likelihood_type_casting.h"
 #include <RcppArmadillo.h>
 #include <optional>
+
+inline Rcpp::IntegerMatrix wrap_imat(const arma::imat &M)
+{
+    Rcpp::IntegerMatrix out(M.n_rows, M.n_cols);
+    std::copy(M.begin(), M.end(),
+              out.begin()); // Armadillo is column-major; R is too
+    return out;
+}
+
+inline Rcpp::LogicalMatrix
+wrap_uchar_as_logical(const arma::Mat<unsigned char> &A)
+{
+    Rcpp::LogicalMatrix out(A.n_rows, A.n_cols);
+    auto *p = out.begin();
+    for (arma::uword i = 0; i < A.n_elem; ++i)
+        p[i] = A[i] != 0;
+    return out;
+}
+
+struct SimulationResultsCDM
+{
+    // One entry per condition, in the same order as simulate_conditions()
+    std::vector<std::string> conditions; // length = n_condition
+    std::vector<arma::imat> Y;           // each is N × J (responses 0/1)
+    std::vector<arma::Mat<unsigned char>> Alpha; // each is N × K (mastery 0/1)
+
+    // Optional metadata (can help downstream checks)
+    unsigned int J = 0; // n_item
+    unsigned int K = 0; // n_skill
+
+    void reserve(size_t n_cond)
+    {
+        conditions.reserve(n_cond);
+        Y.reserve(n_cond);
+        Alpha.reserve(n_cond);
+    }
+
+    void add_condition(const std::string &cond_name,
+                       const arma::imat &Y_block,                   // N × J
+                       const arma::Mat<unsigned char> &Alpha_block, // N × K
+                       unsigned int n_item, unsigned int n_skill)
+    {
+        if (J == 0 && K == 0)
+        {
+            J = n_item;
+            K = n_skill;
+        }
+        // (Optional) sanity checks:
+        if (Y_block.n_cols != J)
+            throw std::runtime_error("Y.n_cols != J");
+        if (Alpha_block.n_cols != K)
+            throw std::runtime_error("Alpha.n_cols != K");
+        if (Y_block.n_rows != Alpha_block.n_rows)
+            throw std::runtime_error("Y.n_rows != Alpha.n_rows (N mismatch)");
+
+        conditions.push_back(cond_name);
+        Y.push_back(Y_block);
+        Alpha.push_back(Alpha_block);
+    }
+
+    // Convenience: return an R list (if you return to R)
+    Rcpp::List as_list() const
+    {
+        Rcpp::List Y_out(Y.size());
+        Rcpp::List A_out(Alpha.size());
+
+        for (size_t i = 0; i < Y.size(); ++i)
+        {
+            // n_student x n_item integer matrix
+            // n_student × n_skill logical matrix
+            Y_out[i] = wrap_imat(Y[i]);
+            A_out[i] = wrap_uchar_as_logical(Alpha[i]);
+        }
+
+        Y_out.attr("names") = conditions;
+        A_out.attr("names") = conditions;
+
+        return Rcpp::List::create(Rcpp::Named("condition") = conditions,
+                                  Rcpp::Named("Y") = Y_out,     // list of N×J
+                                  Rcpp::Named("alpha") = A_out, // list of N×K
+                                  Rcpp::Named("J") = static_cast<int>(J),
+                                  Rcpp::Named("K") = static_cast<int>(K));
+    }
+};
+
 struct SimulationResults
 {
     std::vector<double> reaction_times;
@@ -30,6 +115,13 @@ struct SimulationResults
 std::tuple<std::string, std::string, bool>
 parse_cell_name(const std::string &cell_name)
 {
+    // Special case: no factors, generic cell
+    if (cell_name == "Cell")
+    {
+        return {"Cell", "", true};
+        // or {"", "", true} depending on how you want to treat it
+    }
+
     const size_t last_dot_pos = cell_name.find_last_of('.');
 
     if (last_dot_pos == std::string::npos)
@@ -43,62 +135,16 @@ parse_cell_name(const std::string &cell_name)
 }
 
 ///////////////////////////////////////////////////
-/* ------------- Design helpers  ------------- */
-/* TODO: merge it with other new_design*/
-///////////////////////////////////////////////////
-// Use in lbaModel only
-std::shared_ptr<design::design_class>
-new_design_light_rt_model(const Rcpp::S4 &rt_model)
-{
-    // 1. The user enterd elements
-    Rcpp::S4 model_r = rt_model.slot("model");
-    Rcpp::List parameter_map_r = model_r.slot("parameter_map");
-    Rcpp::CharacterVector accumulators_r = model_r.slot("accumulators");
-    Rcpp::List factors_r = model_r.slot("factors");
-    Rcpp::List match_map_r = model_r.slot("match_map");
-    Rcpp::List constants_r = model_r.slot("constants");
-    std::string model_str = model_r.slot("type");
-
-    // Convert to C++ types
-    std::map<std::string, std::vector<std::string>> parameter_map =
-        list_to_map<std::string>(parameter_map_r);
-
-    std::vector<std::string> accumulators =
-        Rcpp::as<std::vector<std::string>>(accumulators_r);
-
-    std::map<std::string, std::vector<std::string>> factors =
-        list_to_map<std::string>(factors_r);
-
-    std::map<std::string, std::map<std::string, std::string>> match_map =
-        nested_list_to_map(match_map_r);
-
-    std::map<std::string, double> constants = constants_to_map(constants_r);
-
-    // Light additional arguments
-    auto model_boolean = R_ucube_to_std_ucube(model_r.slot("model_boolean"));
-
-    auto cell_names =
-        Rcpp::as<std::vector<std::string>>(model_r.slot("cell_names"));
-    auto parameter_x_condition_names = Rcpp::as<std::vector<std::string>>(
-        model_r.slot("parameter_x_condition_names"));
-
-    auto out = std::make_shared<design::design_class>(
-        parameter_map, accumulators, cell_names, parameter_x_condition_names,
-        constants, model_boolean, model_str);
-
-    return out;
-}
-
-///////////////////////////////////////////////////
 /* ------------- Likelihood  ------------- */
 /* TODO: merge it with other new_likelihood*/
 ///////////////////////////////////////////////////
 std::shared_ptr<likelihood::likelihood_class>
 new_likelihood_for_simulation(const Rcpp::S4 &rt_model_r)
 {
-    auto d_ptr = new_design_light_rt_model(rt_model_r);
+    // auto d_ptr = new_design_light_rt_model(rt_model_r);
+    auto d_ptr = new_design_light(rt_model_r);
     Rcpp::S4 model_r = rt_model_r.slot("model");
-    std::string model_str = model_r.slot("type");
+    std::string model_str = get_model_type(model_r);
 
     auto is_positive_drift =
         Rcpp::as<std::vector<bool>>(rt_model_r.slot("is_positive_drift"));

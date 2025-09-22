@@ -2,29 +2,14 @@
 
 #include <RcppArmadillo.h> // for Rcout only
 #include <algorithm>       // sort
-// #include <armadillo>
 #include <iomanip>
-// #include <iostream>
 #include <map>
-// #include <string>
 #include <utility>
-// #include <vector>
 
+#include "type_aliases.h"
 #include <sstream> // std::stringstream and getline?
 #include <tuple>
 #include <unordered_map>
-
-using bool3D = std::vector<std::vector<std::vector<bool>>>;
-using bool2D = std::vector<std::vector<bool>>; // redefined
-using bool1D = std::vector<bool>;
-
-using uint2D = std::vector<std::vector<unsigned int>>; // redefined
-using uint1D = std::vector<unsigned int>;
-
-using double2D = std::vector<std::vector<double>>;
-
-using strVec = std::vector<std::string>;
-using strMap = std::map<std::string, std::string>;
 
 ///////////////////////////////////////////////////////////////
 /* ----------split_parameter_condition (para_list) ----------*/
@@ -154,6 +139,30 @@ inline strVec add_M(const std::map<std::string, strVec> &parameter_map,
 {
     strVec all_parameters;
 
+    // ----- Handle empty factors case -----
+    if (factors.empty())
+    {
+        for (const auto &[param, associations] : parameter_map)
+        {
+            bool has_M = (find(associations.begin(), associations.end(), "M") !=
+                          associations.end());
+
+            if (has_M)
+            {
+                all_parameters.push_back(param + ".true");
+                all_parameters.push_back(param + ".false");
+            }
+            else
+            {
+                all_parameters.push_back(param);
+            }
+        }
+
+        std::sort(all_parameters.begin(), all_parameters.end());
+        return all_parameters;
+    }
+
+    // ----- factors has values. -----
     for (const auto &[param, associations] : parameter_map)
     {
         // Sort associations: "S" first, then alphabetical order
@@ -182,18 +191,6 @@ inline strVec add_M(const std::map<std::string, strVec> &parameter_map,
                 factor_levels.push_back(factors.at(sorted_association));
             }
         }
-
-        // Sort factor levels: "S" first, then alphabetical order
-        // auto sort_order = [](const vector<string> &a, const vector<string>
-        // &b)
-        // {
-        //     bool a_has_S = find(a.begin(), a.end(), "S") != a.end();
-        //     bool b_has_S = find(b.begin(), b.end(), "S") != b.end();
-        //     if (a_has_S != b_has_S)
-        //         return a_has_S;
-        //     return a < b;
-        // };
-        // sort(factor_levels.begin(), factor_levels.end(), sort_order);
 
         if (factor_levels.empty())
         {
@@ -335,24 +332,8 @@ umap_add_M(const std::unordered_map<std::string, strVec> &parameter_map,
 ///////////////////////////////////////////////////////////////
 /* ---------- build_cell_names ----------*/
 ///////////////////////////////////////////////////////////////
-inline void validate_SR(const std::map<std::string, strVec> &factors,
-                        const strVec &accumulators)
-{
-    // Ensure the default factor "S" is present in the factors
-    if (factors.find("S") == factors.end())
-    {
-        throw std::runtime_error("The 'factors' argument must include the 'S' "
-                                 "factor (model_utils.cpp.)");
-    }
-
-    // Ensure the levels of "S" match the length of the accumulator
-    if (factors.at("S").size() != accumulators.size())
-    {
-        throw std::runtime_error("The number of levels for 'S' must match the "
-                                 "number of accumulators (model_utils.cpp.)");
-    }
-}
-
+// helper alias
+// using strVec = std::vector < std::string>;
 // Helper function to compute the Cartesian product of vectors
 inline std::vector<strVec> cartesian_product(const std::vector<strVec> &input)
 {
@@ -373,24 +354,123 @@ inline std::vector<strVec> cartesian_product(const std::vector<strVec> &input)
     return result;
 }
 
+inline std::pair<strVec, strVec> build_cell_names_no_accumulator(
+    const std::map<std::string, strVec> &parameter_map,
+    const std::map<std::string, strVec> &factors)
+{
+    // 1) Collect factor levels that are referenced by parameters
+    std::map<std::string, strVec> factor_levels;
+    for (const auto &kv : parameter_map)
+    {
+        const auto &factorList = kv.second;
+        for (const auto &factor : factorList)
+        {
+            auto it = factors.find(factor);
+            if (it != factors.end())
+                factor_levels[factor] = it->second;
+        }
+    }
+
+    strVec sorted_factors;
+    for (const auto &kv : factor_levels)
+    {
+        sorted_factors.push_back(kv.first);
+    }
+    std::sort(sorted_factors.begin(), sorted_factors.end());
+
+    // 3) factor level matrix (handle zero-factor case)
+    std::vector<strVec> levels;
+    levels.reserve(sorted_factors.size());
+    for (const auto &f : sorted_factors)
+    {
+        levels.push_back(factor_levels.at(f));
+    }
+
+    std::vector<strVec> factorCombinations;
+    if (levels.empty())
+    {
+        // cartesian product over 0 sets = { empty tuple }
+        factorCombinations.push_back(strVec{});
+    }
+    else
+    {
+        factorCombinations = cartesian_product(levels);
+    }
+
+    // 4) build names
+    strVec combinations;
+
+    // no accumulators: just the factor combo, or "" if no factors at all
+    for (const auto &combo : factorCombinations)
+    {
+        if (combo.empty())
+        {
+            // represent the single “no-factor” cell
+            combinations.emplace_back("");
+        }
+        else
+        {
+            std::string s;
+            s.reserve(16 * combo.size());
+            for (size_t i = 0; i < combo.size(); ++i)
+            {
+                if (i)
+                    s += '.';
+                s += combo[i];
+            }
+            combinations.push_back(std::move(s));
+        }
+    }
+
+    std::sort(combinations.begin(), combinations.end());
+    return {combinations, sorted_factors};
+}
+
+inline void validate_SR(const std::map<std::string, strVec> &factors,
+                        const strVec &accumulators)
+{
+    // Ensure the default factor "S" is present in the factors
+    if (factors.find("S") == factors.end())
+    {
+        throw std::runtime_error("The 'factors' argument must include the 'S' "
+                                 "factor (model_utils.cpp.)");
+    }
+
+    // Ensure the levels of "S" match the length of the accumulator
+    if (factors.at("S").size() != accumulators.size())
+    {
+        throw std::runtime_error("For accumulator models, the number of levels "
+                                 "for 'S' must match the "
+                                 "number of accumulators (model_utils.cpp.)");
+    }
+}
+
 inline std::pair<strVec, strVec>
 build_cell_names(const std::map<std::string, strVec> &parameter_map,
                  const std::map<std::string, strVec> &factors,
                  const strVec &accumulators)
 {
-    // map<string, vector<string>> parameter_map0 = {
-    //     {"A", {"1"}}, {"B", {"1"}}, {"t0", {"1"}}, {"mean_v",
-    //     {"POLITICAL_VIEW", "M"}},
-    //     {"sd_v", {"1"}}, {"st0", {"1"}}};
-    // map<string, vector<string>> factors0 = {
-    //     {"S", {"s1", "s2"}}, {"POLITICAL_VIEW", {"liberal", "conservative"}}
-    //     };
-    // vector<string> accumulators0 = {"r1", "r2"};
+    // Handle NULL/empty factors case
+    if (factors.empty())
+    {
+        // Create default accumulator-based combinations
+        strVec combinations;
+        for (const auto &accumulator : accumulators)
+        {
+            combinations.push_back(accumulator);
+        }
+
+        // Sort combinations alphabetically
+        std::sort(combinations.begin(), combinations.end());
+
+        // Return empty factors list since no factors are present
+        return {combinations, {}};
+    }
 
     validate_SR(factors, accumulators);
 
     // Extract the factors and their levels from the parameterMap
-    std::map<std::string, strVec> factorLevels;
+    std::map<std::string, strVec> factor_levels;
 
     // Although the for loop follows the order the user enter in the
     // parameter_map, e.g., std::map will should do the alphabetical ordering.
@@ -409,34 +489,55 @@ build_cell_names(const std::map<std::string, strVec> &parameter_map,
                 //   D = c("d1", "d2"),
                 //   E = c("e1", "e2"))
                 // , so this creates a dictionary.
-                factorLevels[factor] = factors.at(factor);
+                factor_levels[factor] = factors.at(factor);
             }
         }
     }
 
-    // Always include the default factor "S" in the combinations
-    if (factorLevels.find("S") == factorLevels.end())
+    // Always include the default factor "S" in the combinations if it exists in
+    // factors
+    if (factors.find("S") != factors.end() &&
+        factor_levels.find("S") == factor_levels.end())
     {
-        factorLevels["S"] = factors.at("S");
+        factor_levels["S"] = factors.at("S");
     }
 
-    // Ensure the default factor 'S' is always first
-    strVec sortedFactors = {"S"};
-    for (const auto &[factor, _] : factorLevels)
+    // If no factors were found in parameter_map and "S" doesn't exist, return
+    // accumulator-only combinations
+    if (factor_levels.empty())
+    {
+        strVec combinations;
+        for (const auto &accumulator : accumulators)
+        {
+            combinations.push_back(accumulator);
+        }
+        std::sort(combinations.begin(), combinations.end());
+        return {combinations, {}};
+    }
+
+    // Ensure the default factor 'S' is always first if it exists
+    strVec sorted_factors;
+    if (factor_levels.find("S") != factor_levels.end())
+    {
+        sorted_factors.push_back("S");
+    }
+
+    for (const auto &[factor, _] : factor_levels)
     {
         if (factor != "S")
         {
-            sortedFactors.push_back(factor);
+            sorted_factors.push_back(factor);
         }
     }
-    sort(sortedFactors.begin() + 1, sortedFactors.end());
+    sort(sorted_factors.begin() + (sorted_factors.empty() ? 0 : 1),
+         sorted_factors.end());
 
     // Generate all possible combinations of factor levels
     std::vector<strVec> factorCombinations;
     std::vector<strVec> levels;
-    for (const auto &factor : sortedFactors)
+    for (const auto &factor : sorted_factors)
     {
-        levels.push_back(factorLevels.at(factor));
+        levels.push_back(factor_levels.at(factor));
     }
     factorCombinations = cartesian_product(levels);
 
@@ -459,9 +560,8 @@ build_cell_names(const std::map<std::string, strVec> &parameter_map,
     // Sort combinations alphabetically
     std::sort(combinations.begin(), combinations.end());
 
-    return {combinations, sortedFactors};
+    return {combinations, sorted_factors};
 }
-
 ///////////////////////////////////////////////////////////////
 /* ---------- parameter_x_condition.hpp ----------*/
 ///////////////////////////////////////////////////////////////
@@ -470,6 +570,11 @@ inline std::vector<bool> is_core_parameter_x_condition(
     const std::map<std::string, strVec> &parameter_map,
     const std::map<std::string, strVec> &factors)
 {
+    // Handle empty factors case - no parameters can have factor associations
+    if (factors.empty())
+    {
+        return std::vector<bool>(parameter_map.size(), false);
+    }
     std::vector<bool> out(parameter_map.size(), false);
     int i = 0;
 
@@ -580,8 +685,25 @@ inline strMap get_factor_cells(const std::string &cell_name,
     {
         throw std::runtime_error(
             "The number of factors must be the same as the "
-            "number of cell name component - 1");
+            "number of cell name component - 1 (model_utils.h)");
     }
+
+    for (size_t i = 0; i < factor_names.size(); ++i)
+    {
+        // The last component in the factor level is the resposne code.
+        // Because the cell_name include a level of all the factors, this
+        // cover all factor.
+        out[factor_names[i]] = factor_levels[i];
+    }
+    // The map will make the S comes after
+    return out;
+}
+
+inline strMap get_factor_cells_no_accumulator(const std::string &cell_name,
+                                              const strVec &factor_names)
+{
+    strMap out;
+    strVec factor_levels = split(cell_name, '.');
 
     for (size_t i = 0; i < factor_names.size(); ++i)
     {
@@ -960,16 +1082,8 @@ build_model_boolean_arma(const std::map<std::string, strVec> &parameter_map,
     size_t n_parameter = parameter_x_condition_names.size(); // col
     size_t n_accumulator = accumulators.size();              // slice
 
-    // for(const auto)
-    // for (const auto &item : cell_names)
-
-    // Rcpp::Rcout << "Inside build_model_boolean_arma\n";
-
     arma::ucube model_boolean =
         arma::ucube(n_cell, n_parameter, n_accumulator, arma::fill::zeros);
-
-    // Rcpp::Rcout << "model_boolean_arma\n";
-    // model_boolean.print();
 
     bool1D is_asso = is_parameter_condition_associated(
         parameter_map, parameter_x_condition_names, factors);
@@ -1089,4 +1203,116 @@ inline uint2D get_node_1_index(const strVec &cell_names,
         }
     }
     return out;
+}
+
+// Build a parameter-by-cell boolean matrix for models WITHOUT
+// accumulators and WITHOUT match_map (no M-factor semantics).
+inline bool3D build_model_boolean_noaccu_nomatch(
+    const std::map<std::string, strVec> &parameter_map,
+    const std::map<std::string, strVec> &factors)
+{
+    // 1) Derive cells (no accumulators)
+    auto cell_res = build_cell_names_no_accumulator(parameter_map, factors);
+    const strVec &cell_names = cell_res.first;
+    const strVec &factor_names = cell_res.second;
+
+    // 2) Parameter x condition labels (no M expansion intended here).
+    //    We still use add_M for non-M params; we will *reject* if user used
+    //    "M".
+    strVec parameter_x_condition_names = add_M(parameter_map, factors);
+    auto para_list = split_parameter_condition(parameter_x_condition_names);
+
+    const size_t n_cell = cell_names.size();
+    const size_t n_parameter = parameter_x_condition_names.size();
+    size_t n_accumulator = 1;
+
+    bool3D model_boolean(n_cell,
+                         bool2D(n_parameter, bool1D(n_accumulator, false)));
+
+    // 3) Which parameters are associated with factors?
+    bool1D is_asso = is_parameter_condition_associated(
+        parameter_map, parameter_x_condition_names, factors);
+
+    // Utility: build a reverse lookup level->factor for quick mapping
+    // (safe for unique level labels within each factor)
+    std::map<std::string, std::string> level_to_factor; // level -> factor name
+    for (const auto &fk : factors)
+    {
+        const std::string &fname = fk.first;
+        for (const auto &lvl : fk.second)
+        {
+            level_to_factor[lvl] = fname;
+        }
+    }
+
+    // Main loops (no accumulator slice)
+    for (size_t cell_idx = 0; cell_idx < n_cell; ++cell_idx)
+    {
+        // factor_cells maps factor -> level for this cell (e.g., S -> s1, D ->
+        // d2, ...)
+        const strMap factor_cells =
+            get_factor_cells_no_accumulator(cell_names[cell_idx], factor_names);
+
+        for (size_t para_idx = 0; para_idx < n_parameter; ++para_idx)
+        {
+            const strVec &parameter_and_levels = para_list[para_idx];
+            const std::string &core_parameter = parameter_and_levels[0];
+
+            // Factor keys the user mapped to this parameter (e.g., {"S"},
+            // {"D","H"}, possibly "M")
+            strVec factor_keys = parameter_map.at(core_parameter);
+
+            // Reject "M" in a non-accumulator/no-match_map model.
+            if (std::find(factor_keys.begin(), factor_keys.end(), "M") !=
+                factor_keys.end())
+            {
+                throw std::invalid_argument(
+                    "Factor 'M' is not supported in non-accumulator models (no "
+                    "match_map).");
+            }
+
+            if (!is_asso[para_idx])
+            {
+                // Non-associated → applies to all cells
+                model_boolean[cell_idx][para_idx][0] = true;
+                continue;
+            }
+
+            // Associated: extract the factor-level constraints from the
+            // parameter label. parameter_and_levels = { core_parameter,
+            // levelToken1, levelToken2, ... } We infer which factor each level
+            // token belongs to by searching `level_to_factor`. (Order-agnostic;
+            // robust to how the label was constructed.)
+            bool matches = true;
+            for (size_t k = 1; k < parameter_and_levels.size(); ++k)
+            {
+                const std::string &tok = parameter_and_levels[k];
+
+                // Identify which factor this token comes from
+                auto lf = level_to_factor.find(tok);
+                if (lf == level_to_factor.end())
+                {
+                    // Unknown token (e.g., stray "true/false" from M): reject
+                    // in this mode
+                    matches = false;
+                    break;
+                }
+                const std::string &fkey = lf->second; // factor name
+                // Check the cell's level for that factor matches the token
+                auto it_cell = factor_cells.find(fkey);
+                if (it_cell == factor_cells.end() || it_cell->second != tok)
+                {
+                    matches = false;
+                    break;
+                }
+            }
+
+            if (matches)
+            {
+                model_boolean[cell_idx][para_idx][0] = true;
+            }
+        } // para_idx
+    } // cell_idx
+
+    return model_boolean;
 }
