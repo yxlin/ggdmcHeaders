@@ -14,13 +14,15 @@ This version introduces **Cognitive Diagnostic Model (CDM)** support, extending 
 It integrates with the Differential Evolution Markov Chain Monte Carlo (DE-MCMC) sampler from the [`ggdmc`](https://cran.r-project.org/package=ggdmc) package, allowing users to build and fit design-based cognitive models, including factorial designs.
 
 This package serves as a shared C++ codebase for the following packages:  
-- [`ggdmcModel`](https://cran.r-project.org/package=ggdmcModel),  
-- [`ggdmcPrior`](https://cran.r-project.org/package=ggdmcPrior),  
-- [`ggdmcLikelihood`](https://cran.r-project.org/package=ggdmcLikelihood),  
-- [`lbaModel`](https://cran.r-project.org/package=lbaModel),  
-- [`ddModel`](https://cran.r-project.org/package=ddModel), 
-- [`ggdmc`](https://cran.r-project.org/package=ggdmc), 
-- [`cdModel`](https://cran.r-project.org/package=cdModel).
+
+- [`ggdmcModel`](https://cran.r-project.org/package=ggdmcModel)
+- [`ggdmcPrior`](https://cran.r-project.org/package=ggdmcPrior)
+- [`ggdmcLikelihood`](https://cran.r-project.org/package=ggdmcLikelihood)
+- [`lbaModel`](https://cran.r-project.org/package=lbaModel)
+- [`ddModel`](https://cran.r-project.org/package=ddModel)
+- [`ggdmc`](https://cran.r-project.org/package=ggdmc)
+- `cdModel` – Cognitive Diagnostic Models (new integration)
+
 ---
 
 ## ✨ Features
