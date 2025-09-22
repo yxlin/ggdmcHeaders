@@ -173,7 +173,7 @@ inline CDMInputs require_cdm_inputs(const Rcpp::S4 &dmi)
         cdm_stop_with_usage(
             "q_matrix", "Slot 'q_matrix' must be a numeric/integer matrix.");
 
-    arma::mat q_mat = r_mat_to_arma_mat_any(q_obj);
+    arma::mat q_mat = r_mat_to_arma_mat(q_obj);
 
     // --- prior_pi ---
     if (!dmi.hasSlot("prior_pi"))

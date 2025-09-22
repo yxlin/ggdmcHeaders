@@ -167,7 +167,7 @@ inline std::vector<std::vector<R>> r_mat_to_std_mat(const T &input)
     return output;
 }
 
-inline arma::mat r_mat_to_arma_mat_any(const Rcpp::RObject &obj)
+inline arma::mat r_mat_to_arma_mat(const Rcpp::RObject &obj)
 {
     if (!Rf_isMatrix(obj))
         Rcpp::stop("Expected a matrix (base R matrix).");
@@ -199,7 +199,6 @@ inline arma::mat r_mat_to_arma_mat_any(const Rcpp::RObject &obj)
             }
         return out;
     }
-
     Rcpp::stop("Expected a numeric or integer matrix.");
 }
 

@@ -7,7 +7,9 @@
 [![R-CMD-check](https://github.com/yxlin/ggdmcHeaders/actions/workflows/R-CMD-check.yaml/badge.svg)](https://github.com/yxlin/ggdmcHeaders/actions/workflows/R-CMD-check.yaml)
 
 
-**ggdmcHeaders** provides the C++ backend for choice response time models, enabling high-performance computation for hierarchical modelling and Bayesian inference.  
+**ggdmcHeaders 0.2.9.2 (development)** provides the C++ backend for choice response time models, enabling high-performance computation for hierarchical modelling and Bayesian inference.  
+
+This version introduces **Cognitive Diagnostic Model (CDM)** support, extending the package beyond LBA and DDM to provide a unified backend for a wider class of cognitive models.
 
 It integrates with the Differential Evolution Markov Chain Monte Carlo (DE-MCMC) sampler from the [`ggdmc`](https://cran.r-project.org/package=ggdmc) package, allowing users to build and fit design-based cognitive models, including factorial designs.
 
@@ -16,9 +18,9 @@ This package serves as a shared C++ codebase for the following packages:
 [`ggdmcPrior`](https://cran.r-project.org/package=ggdmcPrior),  
 [`ggdmcLikelihood`](https://cran.r-project.org/package=ggdmcLikelihood),  
 [`lbaModel`](https://cran.r-project.org/package=lbaModel),  
-[`ddModel`](https://cran.r-project.org/package=ddModel), and  
-[`ggdmc`](https://cran.r-project.org/package=ggdmc).
-
+[`ddModel`](https://cran.r-project.org/package=ddModel), 
+[`ggdmc`](https://cran.r-project.org/package=ggdmc), and the new 
+[`cdModel`](https://cran.r-project.org/package=cdModel).
 ---
 
 ## ✨ Features
@@ -27,6 +29,7 @@ This package serves as a shared C++ codebase for the following packages:
 - Optimised for DE-MCMC sampling in `ggdmc`.
 - Works seamlessly with multiple model packages in the `ggdmc` ecosystem.
 - Designed for flexibility in building **design-based cognitive models**.
+- **New in 0.2.9.2**: Support for **Cognitive Diagnostic Models (CDM)**, enabling latent skill diagnosis and mastery modelling.
 
 ---
 
@@ -39,17 +42,13 @@ This package serves as a shared C++ codebase for the following packages:
 
 ## 📥 Installation
 
-### From CRAN
+### Development version from GitHub
+
 ```r
-install.packages("ggdmcHeaders")
+# install.packages("remotes")
+remotes::install_github("yxlin/ggdmcHeaders", ref = "dev")
 ```
 
-### From Source
-
-Download the [source tarball](https://cran.r-project.org/web/packages/ggdmcHeaders/index.html) and install:
-```r
-install.packages("ggdmcHeaders_0.2.9.1.tar.gz", repos = NULL, type = "source")
-```
 
 ## 🔗 Related Packages
 - ggdmc – Main modelling framework
@@ -58,6 +57,7 @@ install.packages("ggdmcHeaders_0.2.9.1.tar.gz", repos = NULL, type = "source")
 - ggdmcLikelihood – Likelihood evaluation
 - lbaModel – Linear Ballistic Accumulator models
 - ddModel – Diffusion Decision models
+- cdModel – Cognitive Diagnostic Models (new integration)
 
 ## 📄 License
 This package is released under the GPL (≥ 3) license.
